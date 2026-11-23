@@ -201,12 +201,13 @@ export const OrdersModule: React.FC = () => {
     notify('Commande encaissée, convertie en vente et stock déduit.', 'success');
   };
 
-  const messageCustomerWhatsApp = (order: Order) => {
+  const messageCustomerWhatsApp = async (order: Order) => {
     const itemsText = order.items
       .map((i) => `- ${i.quantity}x ${i.productName}`)
       .join('\n');
     const msg = `Bonjour ${order.customerName},\nVotre commande ${order.orderNumber} chez ${storeProfile.name} est actuellement : ${STATUS_LABELS[order.status]}.\n${itemsText}\nTotal : ${formatMoney(order.total, storeProfile.currency)}`;
-    openWhatsAppChat(order.customerPhone, msg);
+    const res = await openWhatsAppChat(order.customerPhone, msg);
+    notify(res.message, res.offline ? 'error' : 'info');
   };
 
   return (

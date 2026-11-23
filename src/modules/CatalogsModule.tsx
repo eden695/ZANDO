@@ -4,6 +4,7 @@ import {
   Download,
   Eye,
   FileText,
+  Pencil,
   Plus,
   Share2,
   Trash2,
@@ -27,6 +28,7 @@ export const CatalogsModule: React.FC = () => {
     useStore();
 
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [editingCatalog, setEditingCatalog] = useState<SavedCatalog | null>(null);
   const [previewCatalog, setPreviewCatalog] = useState<SavedCatalog | null>(null);
   const [generating, setGenerating] = useState(false);
 
@@ -42,12 +44,29 @@ export const CatalogsModule: React.FC = () => {
 
   const activeProducts = useMemo(() => products.filter((p) => p.isActive), [products]);
 
+  const archivedCatalogItems = useMemo(() => {
+    if (!editingCatalog) return [];
+    const currentIds = new Set(products.map((p) => p.id));
+    return editingCatalog.products.filter((p) => !currentIds.has(p.id));
+  }, [editingCatalog, products]);
+
   const openBuilder = () => {
+    setEditingCatalog(null);
     setTitle(`Catalogue ${storeProfile.name}`);
     setSubtitle(storeProfile.description || 'Sélection officielle disponible sur commande WhatsApp.');
     setSelectedIds(activeProducts.map((p) => p.id));
     setShowStock(true);
     setShowPromotions(true);
+    setBuilderOpen(true);
+  };
+
+  const openEditCatalog = (cat: SavedCatalog) => {
+    setEditingCatalog(cat);
+    setTitle(cat.title);
+    setSubtitle(cat.subtitle);
+    setSelectedIds(cat.products.map((p) => p.id));
+    setShowStock(cat.showStock);
+    setShowPromotions(cat.showPromotions);
     setBuilderOpen(true);
   };
 
@@ -58,7 +77,7 @@ export const CatalogsModule: React.FC = () => {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedIds.length === 0) {
-      notify('Sélectionnez au moins un produit pour générer le catalogue.', 'error');
+      notify('Sélectionnez au moins un produit pour enregistrer le catalogue.', 'error');
       return;
     }
 
@@ -79,12 +98,14 @@ export const CatalogsModule: React.FC = () => {
         showPromotions,
         imageMaxWidth: maxWidth,
         imageQuality: quality,
+        existingCatalog: editingCatalog ?? undefined,
       });
 
       await saveCatalog(snapshot);
       setBuilderOpen(false);
+      setEditingCatalog(null);
       notify(
-        `Catalogue autonome enregistré (${formatBytes(snapshot.htmlSizeBytes)}, ${snapshot.products.length} produits).`,
+        `${editingCatalog ? 'Catalogue modifié' : 'Catalogue autonome enregistré'} (${formatBytes(snapshot.htmlSizeBytes)}, ${snapshot.products.length} produits).`,
         'success',
       );
     } catch (err) {
@@ -137,13 +158,17 @@ export const CatalogsModule: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
-          Générez des catalogues autonomes (HTML avec images intégrées et panier WhatsApp, ou PDF professionnel). Chaque catalogue enregistré est figé et indépendant de vos modifications futures.
+          Créez, modifiez et exportez vos catalogues hors ligne (HTML autonome avec images intégrées et panier WhatsApp, ou PDF professionnel).
         </p>
         <button
           type="button"
           onClick={openBuilder}
           disabled={products.length === 0}
-          className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--brand-accent, #059669)',
+            color: 'var(--brand-accent-fg, #FFFFFF)',
+          }}
         >
           <Plus className="w-4 h-4" />
           <span>Créer un catalogue</span>
@@ -190,20 +215,40 @@ export const CatalogsModule: React.FC = () => {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await removeCatalog(cat.id);
-                    notify('Catalogue supprimé.', 'info');
-                  }}
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer shrink-0"
-                  aria-label="Supprimer le catalogue"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openEditCatalog(cat)}
+                    className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    aria-label="Modifier le catalogue"
+                    title="Modifier le catalogue"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await removeCatalog(cat.id);
+                      notify('Catalogue supprimé.', 'info');
+                    }}
+                    className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                    aria-label="Supprimer le catalogue"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditCatalog(cat)}
+                  className="inline-flex items-center gap-1.5 min-h-[42px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Modifier</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setPreviewCatalog(cat)}
@@ -250,11 +295,14 @@ export const CatalogsModule: React.FC = () => {
         </div>
       )}
 
-      {/* Builder Modal */}
+      {/* Builder / Editor Modal */}
       <SheetModal
         open={builderOpen}
-        onClose={() => setBuilderOpen(false)}
-        title="Générer un catalogue autonome"
+        onClose={() => {
+          setBuilderOpen(false);
+          setEditingCatalog(null);
+        }}
+        title={editingCatalog ? 'Modifier le catalogue' : 'Générer un catalogue autonome'}
         maxWidthClass="max-w-2xl"
       >
         <form onSubmit={handleGenerate} className="space-y-4">
@@ -319,12 +367,17 @@ export const CatalogsModule: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold">
-                Produits inclus ({selectedIds.length}/{products.length})
+                Produits inclus ({selectedIds.length}/{products.length + archivedCatalogItems.length})
               </span>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedIds(activeProducts.map((p) => p.id))}
+                  onClick={() =>
+                    setSelectedIds([
+                      ...activeProducts.map((p) => p.id),
+                      ...archivedCatalogItems.map((p) => p.id),
+                    ])
+                  }
                   className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 cursor-pointer"
                 >
                   Tout sélectionner
@@ -356,13 +409,33 @@ export const CatalogsModule: React.FC = () => {
                   <span className="text-xs text-slate-500 shrink-0">{p.category}</span>
                 </label>
               ))}
+              {archivedCatalogItems.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm cursor-pointer bg-amber-50/40 dark:bg-amber-950/20"
+                >
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(p.id)}
+                      onChange={() => toggleProduct(p.id)}
+                      className="w-4 h-4 accent-emerald-600 shrink-0"
+                    />
+                    <span className="truncate font-medium">{p.name} (archivé)</span>
+                  </span>
+                  <span className="text-xs text-slate-500 shrink-0">{p.category}</span>
+                </label>
+              ))}
             </div>
           </div>
 
           <div className="flex gap-3 justify-end pt-2">
             <button
               type="button"
-              onClick={() => setBuilderOpen(false)}
+              onClick={() => {
+                setBuilderOpen(false);
+                setEditingCatalog(null);
+              }}
               className="min-h-[44px] px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold cursor-pointer"
             >
               Annuler
@@ -370,9 +443,17 @@ export const CatalogsModule: React.FC = () => {
             <button
               type="submit"
               disabled={generating || selectedIds.length === 0}
-              className="min-h-[44px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-50"
+              className="min-h-[44px] px-5 rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--brand-accent, #059669)',
+                color: 'var(--brand-accent-fg, #FFFFFF)',
+              }}
             >
-              {generating ? 'Compression & génération...' : 'Enregistrer le catalogue'}
+              {generating
+                ? 'Compression & génération...'
+                : editingCatalog
+                  ? 'Mettre à jour le catalogue'
+                  : 'Enregistrer le catalogue'}
             </button>
           </div>
         </form>

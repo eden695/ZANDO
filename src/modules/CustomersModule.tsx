@@ -167,12 +167,13 @@ export const CustomersModule: React.FC = () => {
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      openWhatsAppChat(
+                    onClick={async () => {
+                      const res = await openWhatsAppChat(
                         customer.phone,
                         `Bonjour ${customer.name}, c'est ${storeProfile.name}.`,
-                      )
-                    }
+                      );
+                      notify(res.message, res.offline ? 'error' : 'info');
+                    }}
                     className="inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                   >
                     <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />

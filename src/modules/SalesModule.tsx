@@ -690,7 +690,13 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             <div className="flex flex-wrap gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => openWhatsAppChat(selectedSale.customerPhone, buildReceiptText(selectedSale))}
+                onClick={async () => {
+                  const res = await openWhatsAppChat(
+                    selectedSale.customerPhone,
+                    buildReceiptText(selectedSale),
+                  );
+                  notify(res.message, res.offline ? 'error' : 'info');
+                }}
                 className="flex-1 inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4" />

@@ -399,6 +399,7 @@ export const StoreProvider: React.FC<{children: React.ReactNode}> = ({children})
         promotions,
         expenses,
         creditTransactions,
+        catalogs,
       });
 
       await putRecord(STORES.ASSISTANT_MESSAGES, userMsg);
@@ -406,7 +407,17 @@ export const StoreProvider: React.FC<{children: React.ReactNode}> = ({children})
       setAssistantMessages((prev) => [...prev, userMsg, reply]);
       return reply;
     },
-    [storeProfile, products, sales, orders, customers, promotions, expenses, creditTransactions],
+    [
+      storeProfile,
+      products,
+      sales,
+      orders,
+      customers,
+      promotions,
+      expenses,
+      creditTransactions,
+      catalogs,
+    ],
   );
 
   const clearAssistantHistory = useCallback(async () => {

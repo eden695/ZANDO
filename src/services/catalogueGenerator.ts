@@ -23,6 +23,7 @@ export interface BuildCatalogOptions {
   showPromotions: boolean;
   imageQuality: number;
   imageMaxWidth: number;
+  existingCatalog?: SavedCatalog;
 }
 
 function escapeHtml(str: string): string {
@@ -42,11 +43,13 @@ export async function createIndependentCatalogSnapshot(
 ): Promise<SavedCatalog> {
   const selectedSet = new Set(options.selectedProductIds);
   const chosenProducts = products.filter((p) => selectedSet.has(p.id));
+  const includedIds = new Set<string>();
 
   const snapshotProducts: CatalogSnapshotProduct[] = [];
   const categorySet = new Set<string>();
 
   for (const product of chosenProducts) {
+    includedIds.add(product.id);
     const pricing = options.showPromotions
       ? getEffectiveProductPrice(product, promotions)
       : {
@@ -79,16 +82,27 @@ export async function createIndependentCatalogSnapshot(
     });
   }
 
+  // Preserve previously snapshotted items that are still selected even if removed from inventory later
+  if (options.existingCatalog) {
+    for (const oldItem of options.existingCatalog.products) {
+      if (selectedSet.has(oldItem.id) && !includedIds.has(oldItem.id)) {
+        includedIds.add(oldItem.id);
+        categorySet.add(oldItem.category || 'Général');
+        snapshotProducts.push(oldItem);
+      }
+    }
+  }
+
   const [logoDataUrl, bannerDataUrl] = await Promise.all([
     getCompressedDataUrlForCatalog(store.logoBlobId, 320, 0.8),
     getCompressedDataUrlForCatalog(store.bannerBlobId, 1000, 0.72),
   ]);
 
   const draftCatalog: SavedCatalog = {
-    id: generateId('cat'),
+    id: options.existingCatalog?.id ?? generateId('cat'),
     title: options.title.trim() || `Catalogue ${store.name}`,
     subtitle: options.subtitle.trim() || store.description,
-    createdAt: Date.now(),
+    createdAt: options.existingCatalog?.createdAt ?? Date.now(),
     storeName: store.name,
     storePhone: store.phone,
     storeEmail: store.email,

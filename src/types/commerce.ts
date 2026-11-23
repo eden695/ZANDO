@@ -192,6 +192,8 @@ export interface AssistantMessage {
   text: string;
   metrics?: AssistantMetric[];
   details?: string[];
+  recommendations?: string[];
+  followUps?: string[];
   actionRoute?: string;
   actionLabel?: string;
   createdAt: number;

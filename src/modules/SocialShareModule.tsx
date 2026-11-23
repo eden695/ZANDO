@@ -3,6 +3,7 @@ import {Copy, ExternalLink, Info, MessageCircle, Share2} from 'lucide-react';
 import {BlobImage} from '../components/BlobImage';
 import {useStore} from '../context/StoreContext';
 import {getById, STORES} from '../db/indexedDb';
+import {useOnlineStatus} from '../hooks/useOnlineStatus';
 import {
   copyTextSafely,
   openSocialAppIntent,
@@ -13,6 +14,7 @@ import {formatMoney, getEffectiveProductPrice} from '../utils/format';
 
 export const SocialShareModule: React.FC = () => {
   const {products, promotions, storeProfile, notify} = useStore();
+  const isOnline = useOnlineStatus();
   const [selectedProductId, setSelectedProductId] = useState<string>(products[0]?.id ?? '');
   const [caption, setCaption] = useState('');
 
@@ -162,14 +164,19 @@ export const SocialShareModule: React.FC = () => {
 
             <div>
               <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                Copier automatiquement le texte et ouvrir l’application :
+                Copier automatiquement le texte et ouvrir l’application (nécessite Internet) :
               </div>
+              {!isOnline && (
+                <div className="mb-2.5 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                  Vous êtes hors ligne : l’ouverture de WhatsApp, Facebook, Instagram et TikTok nécessite une connexion Internet. La préparation et la copie du texte fonctionnent hors ligne.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => {
-                    openSocialAppIntent('whatsapp', caption);
-                    notify('Ouverture de WhatsApp avec votre texte prêt.', 'info');
+                  onClick={async () => {
+                    const res = await openSocialAppIntent('whatsapp', caption);
+                    notify(res.message, res.offline ? 'error' : 'info');
                   }}
                   className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
@@ -178,9 +185,9 @@ export const SocialShareModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    openSocialAppIntent('facebook', caption);
-                    notify('Texte copié. Ouverture de Facebook pour validation manuelle.', 'info');
+                  onClick={async () => {
+                    const res = await openSocialAppIntent('facebook', caption);
+                    notify(res.message, res.offline ? 'error' : 'info');
                   }}
                   className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
@@ -189,9 +196,9 @@ export const SocialShareModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    openSocialAppIntent('instagram', caption);
-                    notify('Texte copié. Ouverture d’Instagram pour validation manuelle.', 'info');
+                  onClick={async () => {
+                    const res = await openSocialAppIntent('instagram', caption);
+                    notify(res.message, res.offline ? 'error' : 'info');
                   }}
                   className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
@@ -200,9 +207,9 @@ export const SocialShareModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    openSocialAppIntent('tiktok', caption);
-                    notify('Texte copié. Ouverture de TikTok pour validation manuelle.', 'info');
+                  onClick={async () => {
+                    const res = await openSocialAppIntent('tiktok', caption);
+                    notify(res.message, res.offline ? 'error' : 'info');
                   }}
                   className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >

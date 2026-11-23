@@ -136,17 +136,63 @@ export async function copyTextSafely(text: string): Promise<boolean> {
   }
 }
 
-export function openWhatsAppChat(phone: string, message: string): void {
+export interface ExternalLaunchResult {
+  launched: boolean;
+  offline: boolean;
+  message: string;
+}
+
+export async function openWhatsAppChat(
+  phone: string,
+  message: string,
+): Promise<ExternalLaunchResult> {
+  await copyTextSafely(message);
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return {
+      launched: false,
+      offline: true,
+      message:
+        'Connexion Internet requise pour ouvrir WhatsApp. Le message a été copié localement pour envoi dès votre reconnexion.',
+    };
+  }
+
   const clean = sanitizePhoneForWhatsApp(phone);
   const encoded = encodeURIComponent(message);
   const url = clean ? `https://wa.me/${clean}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   launchExternalUri(url);
+  return {
+    launched: true,
+    offline: false,
+    message: 'Ouverture de WhatsApp avec votre message prêt.',
+  };
 }
 
-export function openSocialAppIntent(platform: 'whatsapp' | 'facebook' | 'instagram' | 'tiktok', textToCopy?: string): void {
+export async function openSocialAppIntent(
+  platform: 'whatsapp' | 'facebook' | 'instagram' | 'tiktok',
+  textToCopy?: string,
+): Promise<ExternalLaunchResult> {
   if (textToCopy) {
-    copyTextSafely(textToCopy);
+    await copyTextSafely(textToCopy);
   }
+
+  const labels: Record<typeof platform, string> = {
+    whatsapp: 'WhatsApp',
+    facebook: 'Facebook',
+    instagram: 'Instagram',
+    tiktok: 'TikTok',
+  };
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return {
+      launched: false,
+      offline: true,
+      message: `Connexion Internet requise pour ouvrir ${labels[platform]}. ${
+        textToCopy ? 'Le texte a été copié localement.' : ''
+      }`.trim(),
+    };
+  }
+
   const urls: Record<typeof platform, string> = {
     whatsapp: textToCopy ? `https://wa.me/?text=${encodeURIComponent(textToCopy)}` : 'https://wa.me/',
     facebook: 'https://www.facebook.com/',
@@ -154,6 +200,11 @@ export function openSocialAppIntent(platform: 'whatsapp' | 'facebook' | 'instagr
     tiktok: 'https://www.tiktok.com/',
   };
   launchExternalUri(urls[platform]);
+  return {
+    launched: true,
+    offline: false,
+    message: `Ouverture de ${labels[platform]} pour validation manuelle.`,
+  };
 }
 
 function launchExternalUri(url: string): void {

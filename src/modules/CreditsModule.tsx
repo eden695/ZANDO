@@ -168,12 +168,13 @@ export const CreditsModule: React.FC = () => {
     notify(`${TX_LABELS[opType]} enregistré(e) dans le journal financier.`, 'success');
   };
 
-  const sendWhatsAppReminder = (summary: CustomerCreditSummary) => {
+  const sendWhatsAppReminder = async (summary: CustomerCreditSummary) => {
     const overdueTxt = summary.isOverdue && summary.oldestDueDate
       ? ` (échéance dépassée depuis le ${summary.oldestDueDate})`
       : '';
     const msg = `Bonjour ${summary.customerName},\nPetit rappel amical de la part de *${storeProfile.name}* concernant votre solde en cours de *${formatMoney(summary.netBalance, storeProfile.currency)}*${overdueTxt}.\nMerci de nous confirmer votre prochain règlement. À bientôt !`;
-    openWhatsAppChat(summary.customerPhone, msg);
+    const res = await openWhatsAppChat(summary.customerPhone, msg);
+    notify(res.message, res.offline ? 'error' : 'info');
   };
 
   return (
