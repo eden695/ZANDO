@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Compass,
   CreditCard,
-  Database,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -19,6 +18,7 @@ import {
   Percent,
   Plus,
   RotateCcw,
+  Settings,
   Share2,
   ShoppingCart,
   Store,
@@ -65,7 +65,7 @@ const NAV_ITEMS: Array<{
   {id: 'catalogs', label: 'Catalogues HTML / PDF', icon: BookOpen},
   {id: 'social', label: 'Publication Sociale', icon: Share2},
   {id: 'store', label: 'Identité Boutique', icon: Store},
-  {id: 'backup', label: 'Sauvegarde & Hors-ligne', icon: Database},
+  {id: 'backup', label: 'Paramètres & Sauvegarde', icon: Settings},
 ];
 
 const ZandoShell: React.FC = () => {
@@ -76,7 +76,6 @@ const ZandoShell: React.FC = () => {
     storeProfile,
     saveStoreProfile,
     reloadAll,
-    enterDemoMode,
     resetDemoMode,
     startRealStore,
   } = useStore();
@@ -193,16 +192,6 @@ const ZandoShell: React.FC = () => {
 
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2 shrink-0">
           <PWAInstallButton />
-          {appMode !== 'demo' && (
-            <button
-              type="button"
-              onClick={enterDemoMode}
-              className="w-full flex items-center justify-between min-h-[40px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-            >
-              <span>Essayer la démo isolée</span>
-              <Compass className="w-4 h-4 text-emerald-600" />
-            </button>
-          )}
           <button
             type="button"
             onClick={toggleTheme}
@@ -334,7 +323,9 @@ const ZandoShell: React.FC = () => {
           {route === 'catalogs' && <CatalogsModule />}
           {route === 'social' && <SocialShareModule />}
           {route === 'store' && <StoreIdentityModule />}
-          {route === 'backup' && <BackupSystemModule />}
+          {route === 'backup' && (
+            <BackupSystemModule onOpenGuide={() => setGuideOpen(true)} />
+          )}
         </main>
       </div>
 

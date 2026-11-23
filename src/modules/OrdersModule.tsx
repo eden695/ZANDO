@@ -7,6 +7,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {openWhatsAppChat} from '../services/androidShareService';
@@ -315,18 +316,17 @@ export const OrdersModule: React.FC = () => {
               </div>
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                <select
+                <ModernSelect
+                  compact
                   value={order.status}
-                  onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
-                  aria-label="Statut de la commande"
-                  className="min-h-[40px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold"
-                >
-                  {(Object.keys(STATUS_LABELS) as OrderStatus[]).map((st) => (
-                    <option key={st} value={st}>
-                      {STATUS_LABELS[st]}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleStatusChange(order, val as OrderStatus)}
+                  ariaLabel="Statut de la commande"
+                  className="w-44"
+                  options={(Object.keys(STATUS_LABELS) as OrderStatus[]).map((st) => ({
+                    value: st,
+                    label: STATUS_LABELS[st],
+                  }))}
+                />
 
                 <div className="flex flex-wrap items-center gap-2">
                   {!order.linkedSaleId && order.status !== 'cancelled' && (
@@ -383,18 +383,21 @@ export const OrdersModule: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Client existant</label>
-              <select
+              <ModernSelect
                 value={customerId}
-                onChange={(e) => handleCustomerPick(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="">-- Nouveau client --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                onChange={handleCustomerPick}
+                searchable
+                searchPlaceholder="Rechercher un client..."
+                ariaLabel="Client existant"
+                options={[
+                  {value: '', label: '-- Nouveau client --'},
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    hint: c.phone || c.channel,
+                  })),
+                ]}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Nom complet *</label>
@@ -410,24 +413,27 @@ export const OrdersModule: React.FC = () => {
               <label className="block text-xs font-semibold mb-1">Téléphone WhatsApp</label>
               <input
                 type="tel"
+                inputMode="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="+243..."
                 className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Canal d’origine</label>
-              <select
+              <ModernSelect
                 value={channel}
-                onChange={(e) => setChannel(e.target.value as SalesChannel)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Facebook">Facebook</option>
-                <option value="Boutique">Boutique</option>
-                <option value="Autre">Autre</option>
-              </select>
+                onChange={(val) => setChannel(val as SalesChannel)}
+                ariaLabel="Canal d’origine"
+                options={[
+                  {value: 'WhatsApp', label: 'WhatsApp'},
+                  {value: 'Instagram', label: 'Instagram'},
+                  {value: 'Facebook', label: 'Facebook'},
+                  {value: 'Boutique', label: 'Boutique'},
+                  {value: 'Autre', label: 'Autre'},
+                ]}
+              />
             </div>
           </div>
 
@@ -526,16 +532,17 @@ export const OrdersModule: React.FC = () => {
             </p>
             <div>
               <label className="block text-xs font-semibold mb-1">Mode de paiement</label>
-              <select
+              <ModernSelect
                 value={convertMethod}
-                onChange={(e) => setConvertMethod(e.target.value as PaymentMethod)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="Espèces">Espèces</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Virement">Virement</option>
-                <option value="Carte">Carte</option>
-              </select>
+                onChange={(val) => setConvertMethod(val as PaymentMethod)}
+                ariaLabel="Mode de paiement"
+                options={[
+                  {value: 'Espèces', label: 'Espèces'},
+                  {value: 'Mobile Money', label: 'Mobile Money'},
+                  {value: 'Virement', label: 'Virement'},
+                  {value: 'Carte', label: 'Carte'},
+                ]}
+              />
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button

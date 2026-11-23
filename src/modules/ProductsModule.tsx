@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import {BlobImage} from '../components/BlobImage';
 import {ExcelImportModal} from '../components/ExcelImportModal';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {saveCompressedImageBlob} from '../services/mediaService';
@@ -95,13 +96,21 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
     setModalOpen(true);
   };
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
     for (const p of products) {
-      if (p.category.trim()) set.add(p.category.trim());
+      const cat = p.category.trim();
+      if (cat) counts.set(cat, (counts.get(cat) ?? 0) + 1);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({name, count}))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   }, [products]);
+
+  const categories = useMemo(
+    () => categoryCounts.map((c) => c.name),
+    [categoryCounts],
+  );
 
   const filteredProducts = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -246,32 +255,26 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('ALL')}
-            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-              selectedCategory === 'ALL'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Toutes ({products.length})
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedCategory(cat)}
-              className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                selectedCategory === cat
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        <div className="w-full sm:w-72">
+          <ModernSelect
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+            searchable
+            searchPlaceholder="Rechercher une catégorie..."
+            ariaLabel="Filtrer par catégorie de la boutique"
+            options={[
+              {
+                value: 'ALL',
+                label: 'Toutes les catégories de la boutique',
+                badge: `${products.length}`,
+              },
+              ...categoryCounts.map((c) => ({
+                value: c.name,
+                label: c.name,
+                badge: `${c.count}`,
+              })),
+            ]}
+          />
         </div>
 
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 self-start">
@@ -521,19 +524,47 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Catégorie
               </label>
-              <input
-                type="text"
-                list="category-suggestions"
-                value={form.category}
-                onChange={(e) => setForm({...form, category: e.target.value})}
-                placeholder="Ex : Maroquinerie"
-                className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              />
-              <datalist id="category-suggestions">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
+              <div className="space-y-1.5">
+                {categories.length > 0 && (
+                  <ModernSelect
+                    compact
+                    value={categories.includes(form.category) ? form.category : '__CUSTOM__'}
+                    onChange={(val) => {
+                      if (val === '__CUSTOM__') {
+                        setForm((prev) => ({
+                          ...prev,
+                          category: categories.includes(prev.category) ? '' : prev.category,
+                        }));
+                      } else {
+                        setForm((prev) => ({...prev, category: val}));
+                      }
+                    }}
+                    searchable
+                    searchPlaceholder="Choisir une catégorie existante..."
+                    ariaLabel="Choisir une catégorie existante"
+                    options={[
+                      ...categoryCounts.map((c) => ({
+                        value: c.name,
+                        label: c.name,
+                        badge: `${c.count}`,
+                      })),
+                      {
+                        value: '__CUSTOM__',
+                        label: '+ Saisir / créer une nouvelle catégorie...',
+                      },
+                    ]}
+                  />
+                )}
+                {(categories.length === 0 || !categories.includes(form.category)) && (
+                  <input
+                    type="text"
+                    value={form.category}
+                    onChange={(e) => setForm({...form, category: e.target.value})}
+                    placeholder="Ex : Maroquinerie, Électronique..."
+                    className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
+                  />
+                )}
+              </div>
             </div>
           </div>
 

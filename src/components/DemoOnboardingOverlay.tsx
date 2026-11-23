@@ -3,14 +3,10 @@ import {
   ArrowRight,
   BookOpen,
   Compass,
-  Play,
-  Store,
   TrendingUp,
   Users,
 } from 'lucide-react';
 import {SheetModal} from './SheetModal';
-import {ZandoLogo} from './ZandoLogo';
-import {useStore} from '../context/StoreContext';
 
 interface DemoOnboardingProps {
   guideOpen: boolean;
@@ -22,7 +18,7 @@ const GUIDE_STEPS = [
   {
     title: '1. Tableau de bord & Identité',
     description:
-      'Visualisez votre chiffre d’affaires sur 30 jours, les alertes de stock et les dernières ventes. Votre boutique de démonstration « Boutique Étoile » utilise des données fictives totalement isolées.',
+      'Visualisez votre chiffre d’affaires sur 30 jours, les alertes de stock et les dernières ventes. Personnalisez l’identité, le logo et les catégories de votre boutique.',
     route: 'dashboard',
     routeLabel: 'Voir le Tableau de bord',
   },
@@ -36,7 +32,7 @@ const GUIDE_STEPS = [
   {
     title: '3. Ventes & Caisse (Comptant, Partiel, Crédit)',
     description:
-      'Enregistrez des ventes au comptant ou à crédit. Le stock est déduit automatiquement et les paiements partiels alimentent le journal des crédits.',
+      'Enregistrez des ventes au comptant ou à crédit en plein écran. Le stock est déduit automatiquement et les paiements partiels alimentent le journal des crédits.',
     route: 'sales',
     routeLabel: 'Ouvrir Ventes & Caisse',
   },
@@ -64,7 +60,7 @@ const GUIDE_STEPS = [
   {
     title: '7. Catalogues Autonomes HTML & PDF',
     description:
-      'Générez un catalogue HTML autonome avec panier WhatsApp intégré ou un PDF prêt à partager sur Android.',
+      'Générez un catalogue HTML autonome avec panier WhatsApp, envoi SMS et appel direct, ou un PDF prêt à partager.',
     route: 'catalogs',
     routeLabel: 'Générer un Catalogue',
   },
@@ -75,83 +71,13 @@ export const DemoOnboardingOverlay: React.FC<DemoOnboardingProps> = ({
   onCloseGuide,
   onNavigate,
 }) => {
-  const {showOnboardingChoice, enterDemoMode, startRealStore} = useStore();
   const [stepIdx, setStepIdx] = useState(0);
-  const [busy, setBusy] = useState(false);
 
   const currentStep = GUIDE_STEPS[stepIdx] ?? GUIDE_STEPS[0];
 
   return (
     <>
-      {/* Floating First-Launch Choice Window (non-masking) */}
-      {showOnboardingChoice && (
-        <div
-          className="fixed inset-0 z-50 pointer-events-none flex items-end justify-center sm:justify-end p-3 sm:p-5"
-          role="dialog"
-          aria-modal="false"
-          aria-label="Bienvenue sur ZANDO Pro"
-        >
-          <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-300 dark:border-slate-700 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.25)] space-y-4">
-            <ZandoLogo />
-
-            <div className="space-y-1.5">
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white leading-tight">
-                Gestion commerciale professionnelle hors ligne
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                Toutes vos données restent privées sur votre appareil (IndexedDB). Choisissez comment démarrer :
-              </p>
-            </div>
-
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  await enterDemoMode();
-                  setBusy(false);
-                }}
-                className="w-full flex items-start gap-3 p-3.5 rounded-2xl border-2 border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/30 text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Play className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">
-                    Découvrir ZANDO Pro (Mode Démonstration)
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    Explorez une boutique fictive complète dans une base isolée : produits, ventes, bénéfices, crédits clients et assistant.
-                  </div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  await startRealStore();
-                  onNavigate('store');
-                  setBusy(false);
-                }}
-                className="w-full flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Store className="w-5 h-5 text-slate-700 dark:text-slate-200 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">
-                    Configurer mon entreprise
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                    Commencez immédiatement avec un espace réel vide et personnalisez votre boutique.
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Interactive Step-by-Step Guide Modal */}
+      {/* Interactive Step-by-Step Guide Modal (opened from Settings) */}
       <SheetModal
         open={guideOpen}
         onClose={onCloseGuide}

@@ -8,6 +8,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {copyTextSafely, openWhatsAppChat} from '../services/androidShareService';
@@ -351,14 +352,14 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         </div>
       )}
 
-      {/* POS / New Sale Modal */}
+      {/* POS / New Sale Full-Screen Modal */}
       <SheetModal
         open={posOpen}
         onClose={() => setPosOpen(false)}
-        title="Enregistrer une vente"
-        maxWidthClass="max-w-2xl"
+        title="Nouvelle vente — Caisse"
+        fullScreen
       >
-        <form id="pos-form" onSubmit={handleSaveSale} className="space-y-4">
+        <form id="pos-form" onSubmit={handleSaveSale} className="max-w-5xl mx-auto space-y-5">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -370,7 +371,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             />
           </div>
 
-          <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
             {posProducts.length === 0 ? (
               <div className="p-4 text-center text-xs text-slate-500">
                 Aucun produit actif disponible. Créez d’abord un produit.
@@ -431,18 +432,20 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Client existant (optionnel)
               </label>
-              <select
+              <ModernSelect
                 value={customerId}
-                onChange={(e) => handleCustomerPick(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="">-- Client comptoir / nouveau --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={handleCustomerPick}
+                searchable
+                searchPlaceholder="Chercher un client..."
+                options={[
+                  {value: '', label: 'Client comptoir / nouveau'},
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    hint: c.phone || undefined,
+                  })),
+                ]}
+              />
             </div>
 
             <div>
@@ -465,6 +468,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               </label>
               <input
                 type="tel"
+                inputMode="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="+243..."
@@ -472,38 +476,38 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Canal
                 </label>
-                <select
+                <ModernSelect
                   value={channel}
-                  onChange={(e) => setChannel(e.target.value as SalesChannel)}
-                  className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-                >
-                  <option value="WhatsApp">WhatsApp</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Facebook">Facebook</option>
-                  <option value="Boutique">Boutique</option>
-                  <option value="Autre">Autre</option>
-                </select>
+                  onChange={(val) => setChannel(val as SalesChannel)}
+                  options={[
+                    {value: 'WhatsApp', label: 'WhatsApp'},
+                    {value: 'Instagram', label: 'Instagram'},
+                    {value: 'Facebook', label: 'Facebook'},
+                    {value: 'Boutique', label: 'Boutique'},
+                    {value: 'Autre', label: 'Autre'},
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Mode règlement
                 </label>
-                <select
+                <ModernSelect
                   value={paymentMode}
-                  onChange={(e) =>
-                    setPaymentMode(e.target.value as 'full' | 'partial' | 'credit')
+                  onChange={(val) =>
+                    setPaymentMode(val as 'full' | 'partial' | 'credit')
                   }
-                  className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-                >
-                  <option value="full">Comptant (100%)</option>
-                  <option value="partial">Paiement partiel</option>
-                  <option value="credit">À crédit (0 payé)</option>
-                </select>
+                  options={[
+                    {value: 'full', label: 'Comptant (100%)'},
+                    {value: 'partial', label: 'Paiement partiel'},
+                    {value: 'credit', label: 'À crédit (0 payé)'},
+                  ]}
+                />
               </div>
             </div>
           </div>
@@ -513,16 +517,16 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             {paymentMode !== 'credit' && (
               <div>
                 <label className="block text-xs font-semibold mb-1">Moyen de paiement</label>
-                <select
+                <ModernSelect
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-                >
-                  <option value="Espèces">Espèces</option>
-                  <option value="Mobile Money">Mobile Money</option>
-                  <option value="Virement">Virement</option>
-                  <option value="Carte">Carte</option>
-                </select>
+                  onChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                  options={[
+                    {value: 'Espèces', label: 'Espèces'},
+                    {value: 'Mobile Money', label: 'Mobile Money'},
+                    {value: 'Virement', label: 'Virement'},
+                    {value: 'Carte', label: 'Carte'},
+                  ]}
+                />
               </div>
             )}
 

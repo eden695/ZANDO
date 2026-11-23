@@ -1,10 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {
   CheckCircle2,
+  Compass,
   Database,
   Download,
   HardDrive,
+  LogOut,
+  Play,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -28,8 +32,20 @@ import {loadSampleCommerceData} from '../services/seedService';
 import {ZandoBackupPayload} from '../types/commerce';
 import {formatBytes, formatDateTime} from '../utils/format';
 
-export const BackupSystemModule: React.FC = () => {
-  const {schemaMeta, appMode, reloadAll, notify} = useStore();
+interface BackupSystemModuleProps {
+  onOpenGuide?: () => void;
+}
+
+export const BackupSystemModule: React.FC<BackupSystemModuleProps> = ({onOpenGuide}) => {
+  const {
+    schemaMeta,
+    appMode,
+    reloadAll,
+    enterDemoMode,
+    resetDemoMode,
+    startRealStore,
+    notify,
+  } = useStore();
   const isOnline = useOnlineStatus();
 
   const [diag, setDiag] = useState<StorageDiagnostic | null>(null);
@@ -118,6 +134,71 @@ export const BackupSystemModule: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* Settings: Optional Demo Mode & Interactive Guide */}
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Compass className="w-4 h-4 text-emerald-600" />
+              <span>Démonstration & Guide d’utilisation</span>
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+              {appMode === 'demo'
+                ? 'Le Mode Démonstration est actuellement actif sur une base isolée. Vous pouvez le réinitialiser ou revenir à votre boutique réelle à tout moment.'
+                : 'Activez le Mode Démonstration sur une base isolée pour tester toutes les fonctionnalités avec des données fictives sans toucher à votre boutique réelle.'}
+            </p>
+          </div>
+          {appMode === 'demo' && (
+            <span className="inline-flex items-center px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-bold shrink-0 self-start">
+              Mode Démo actif
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2.5">
+          {appMode !== 'demo' ? (
+            <button
+              type="button"
+              onClick={enterDemoMode}
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold cursor-pointer"
+            >
+              <Play className="w-4 h-4" />
+              <span>Activer le Mode Démonstration</span>
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={resetDemoMode}
+                className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 text-xs sm:text-sm font-semibold cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Réinitialiser la démonstration</span>
+              </button>
+              <button
+                type="button"
+                onClick={startRealStore}
+                className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs sm:text-sm font-semibold cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Revenir à ma boutique réelle</span>
+              </button>
+            </>
+          )}
+
+          {onOpenGuide && (
+            <button
+              type="button"
+              onClick={onOpenGuide}
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <Compass className="w-4 h-4 text-emerald-600" />
+              <span>Ouvrir le Guide interactif</span>
+            </button>
+          )}
+        </div>
+      </section>
+
       {/* Backup & Restore Card */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
         <div className="flex items-start justify-between gap-4">

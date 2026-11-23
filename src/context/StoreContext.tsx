@@ -8,7 +8,6 @@ import {
   deleteRecord,
   DEMO_DB_NAME,
   getStoredAppMode,
-  hasExistingRealData,
   loadAllDomainData,
   putRecord,
   REAL_DB_NAME,
@@ -146,21 +145,16 @@ export const StoreProvider: React.FC<{children: React.ReactNode}> = ({children})
     }
   }, []);
 
-  // Boot sequence: preserve existing user data automatically, show onboarding only on truly fresh install
+  // Boot sequence: always open normally in the real local workspace (demo mode is opt-in from Settings)
   useEffect(() => {
     let active = true;
     (async () => {
       const storedMode = getStoredAppMode();
       if (storedMode === 'unset') {
-        const hasReal = await hasExistingRealData().catch(() => false);
         if (!active) return;
-        if (hasReal) {
-          setStoredAppMode('real');
-          setAppMode('real');
-          setShowOnboardingChoice(false);
-        } else {
-          setShowOnboardingChoice(true);
-        }
+        setStoredAppMode('real');
+        setAppMode('real');
+        setShowOnboardingChoice(false);
       }
       await reloadAll();
     })();
@@ -217,11 +211,34 @@ export const StoreProvider: React.FC<{children: React.ReactNode}> = ({children})
     notify('Espace personnel prêt. Vos données réelles sont isolées de la démonstration.', 'success');
   }, [reloadAll, notify]);
 
-  const saveStoreProfile = useCallback(async (next: StoreProfile) => {
-    const updated = {...next, id: 'default' as const, updatedAt: Date.now()};
-    await putRecord(STORES.STORE_PROFILE, updated);
-    setStoreProfile(updated);
-  }, []);
+  const saveStoreProfile = useCallback(
+    async (next: StoreProfile) => {
+      const prevPhone = storeProfile.phone;
+      const updated = {...next, id: 'default' as const, updatedAt: Date.now()};
+      await putRecord(STORES.STORE_PROFILE, updated);
+      setStoreProfile(updated);
+
+      // Si le numéro WhatsApp de la boutique change, synchroniser les catalogues qui utilisaient l'ancien numéro (ou aucun numéro)
+      if (updated.phone !== prevPhone && catalogs.length > 0) {
+        const synced: SavedCatalog[] = [];
+        let changed = false;
+        for (const cat of catalogs) {
+          if (!cat.storePhone || cat.storePhone === prevPhone) {
+            const nextCat = {...cat, storePhone: updated.phone};
+            await putRecord(STORES.CATALOGS, nextCat);
+            synced.push(nextCat);
+            changed = true;
+          } else {
+            synced.push(cat);
+          }
+        }
+        if (changed) {
+          setCatalogs(synced);
+        }
+      }
+    },
+    [storeProfile.phone, catalogs],
+  );
 
   const saveProduct = useCallback(async (product: Product) => {
     await putRecord(STORES.PRODUCTS, product);
@@ -348,7 +365,15 @@ export const StoreProvider: React.FC<{children: React.ReactNode}> = ({children})
 
   const saveCatalog = useCallback(async (catalog: SavedCatalog) => {
     await putRecord(STORES.CATALOGS, catalog);
-    setCatalogs((prev) => [catalog, ...prev]);
+    setCatalogs((prev) => {
+      const idx = prev.findIndex((c) => c.id === catalog.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = catalog;
+        return copy;
+      }
+      return [catalog, ...prev];
+    });
   }, []);
 
   const removeCatalog = useCallback(async (id: string) => {

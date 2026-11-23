@@ -9,6 +9,7 @@ import {
 import {
   formatDate,
   formatMoney,
+  formatPhoneForTelUri,
   generateId,
   getEffectiveProductPrice,
   sanitizePhoneForWhatsApp,
@@ -26,8 +27,8 @@ export interface BuildCatalogOptions {
   existingCatalog?: SavedCatalog;
 }
 
-function escapeHtml(str: string): string {
-  return str
+function escapeHtml(str?: string | null): string {
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -134,11 +135,14 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
   const safeEmail = escapeHtml(catalog.storeEmail);
   const safeAddress = escapeHtml(catalog.storeAddress);
   const cleanWaPhone = sanitizePhoneForWhatsApp(catalog.storePhone);
+  const telPhone = formatPhoneForTelUri(catalog.storePhone);
 
   // Embedded JSON payload inside standalone HTML (zero external fetch, zero server)
   const embeddedDataJson = JSON.stringify({
     storeName: catalog.storeName,
     storePhone: cleanWaPhone,
+    rawPhone: telPhone,
+    displayPhone: catalog.storePhone,
     currency: catalog.currency,
     showStock: catalog.showStock,
     products: catalog.products.map((p) => ({
@@ -304,9 +308,37 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
     background: #F8FAFC; font-weight: 700; cursor: pointer;
   }
   .field { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; font-size: 0.92rem; }
+  .action-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .wa-submit {
-    margin-top: 14px; width: 100%; min-height: 48px; border: none; border-radius: 10px;
-    background: #16A34A; color: #fff; font-weight: 700; font-size: 0.98rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 48px; border: none; border-radius: 10px;
+    background: #16A34A; color: #fff; font-weight: 700; font-size: 0.96rem;
+    cursor: pointer; text-decoration: none;
+  }
+  .sms-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; min-height: 44px; border: 1px solid #0284C7; border-radius: 10px;
+    background: #F0F9FF; color: #0369A1; font-weight: 700; font-size: 0.88rem;
+    cursor: pointer; text-decoration: none;
+  }
+  .call-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; min-height: 44px; border: 1px solid var(--border); border-radius: 10px;
+    background: #F8FAFC; color: var(--text); font-weight: 700; font-size: 0.88rem;
+    cursor: pointer; text-decoration: none;
+  }
+  .copy-btn {
+    width: 100%; min-height: 40px; border: 1px dashed var(--border); border-radius: 10px;
+    background: transparent; color: var(--muted); font-weight: 600; font-size: 0.84rem;
+    cursor: pointer;
+  }
+  .dest-box {
+    margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #F8FAFC;
+    border: 1px solid var(--border); font-size: 0.8rem; color: var(--muted);
+  }
+  .order-feedback {
+    margin-top: 8px; font-size: 0.82rem; font-weight: 600; color: #059669; min-height: 18px;
   }
   .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
   footer { margin-top: 32px; padding: 18px 0; border-top: 1px solid var(--border); font-size: 0.78rem; color: var(--muted); text-align: center; }
@@ -364,17 +396,26 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
 <div id="cartModal" class="modal-backdrop" role="dialog" aria-modal="true">
   <div class="modal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h2 style="font-size:1.15rem;font-weight:700;">Préparer ma commande WhatsApp</h2>
+      <h2 style="font-size:1.15rem;font-weight:700;">Finaliser ma commande</h2>
       <button type="button" id="closeCartBtn" style="border:none;background:#F1F5F9;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;">Fermer</button>
     </div>
     <div id="cartItems"></div>
     <div id="cartTotalLine" style="margin-top:12px;font-weight:700;font-size:1.05rem;text-align:right;font-variant-numeric:tabular-nums;"></div>
-    <div style="margin-top:14px;">
+    <div class="dest-box" id="destBox"></div>
+    <div style="margin-top:10px;">
       <input id="buyerName" class="field" type="text" placeholder="Votre nom complet" />
       <input id="buyerAddress" class="field" type="text" placeholder="Quartier / Adresse de livraison" />
       <textarea id="buyerNotes" class="field" rows="2" placeholder="Précisions (taille, couleur, heure...)"></textarea>
     </div>
-    <button type="button" id="sendWaBtn" class="wa-submit">Envoyer la commande sur WhatsApp</button>
+    <div class="action-stack">
+      <button type="button" id="sendWaBtn" class="wa-submit">Envoyer la commande sur WhatsApp</button>
+      <div class="action-row">
+        <button type="button" id="sendSmsBtn" class="sms-btn">Envoyer par SMS (Texto)</button>
+        <a id="callShopLink" href="#" class="call-btn">Appeler la boutique</a>
+      </div>
+      <button type="button" id="copyOrderBtn" class="copy-btn">Copier le récapitulatif</button>
+    </div>
+    <div id="orderFeedback" class="order-feedback"></div>
   </div>
 </div>
 
@@ -480,6 +521,59 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
     totalLine.textContent = 'Total estimé : ' + formatPrice(total);
   }
 
+  function buildOrderMessage() {
+    var entries = Object.keys(cart).filter(function(id) { return cart[id] > 0; });
+    if (!entries.length) return null;
+    var name = document.getElementById('buyerName').value.trim();
+    var addr = document.getElementById('buyerAddress').value.trim();
+    var notes = document.getElementById('buyerNotes').value.trim();
+    var total = 0;
+    var lines = ['Bonjour ' + DATA.storeName + ', je souhaite commander :'];
+    entries.forEach(function(id) {
+      var prod = DATA.products.find(function(x) { return x.id === id; });
+      if (!prod) return;
+      var q = cart[id];
+      var sub = prod.finalPrice * q;
+      total += sub;
+      lines.push('- ' + q + 'x ' + prod.name + ' (' + formatPrice(sub) + ')');
+    });
+    lines.push('Total estimé : ' + formatPrice(total));
+    if (name) lines.push('Client : ' + name);
+    if (addr) lines.push('Livraison : ' + addr);
+    if (notes) lines.push('Notes : ' + notes);
+    return lines.join('\\n');
+  }
+
+  function showOrderFeedback(txt, isWarn) {
+    var fb = document.getElementById('orderFeedback');
+    fb.style.color = isWarn ? '#D97706' : '#059669';
+    fb.textContent = txt || '';
+  }
+
+  function openExternalLink(url) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function refreshDestinationInfo() {
+    var dest = document.getElementById('destBox');
+    var callLink = document.getElementById('callShopLink');
+    if (DATA.rawPhone) {
+      dest.innerHTML = 'Boutique : <strong>' + esc(DATA.storeName) + '</strong> · Numéro : <strong>' + esc(DATA.displayPhone || DATA.rawPhone) + '</strong>';
+      callLink.href = 'tel:' + DATA.rawPhone;
+      callLink.style.display = 'flex';
+    } else {
+      dest.innerHTML = 'Boutique : <strong>' + esc(DATA.storeName) + '</strong> · Numéro non configuré dans le catalogue.';
+      callLink.href = '#';
+      callLink.style.display = 'none';
+    }
+  }
+
   document.getElementById('catBar').addEventListener('click', function(e) {
     var btn = e.target.closest('.cat-btn');
     if (!btn) return;
@@ -507,6 +601,8 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
 
   document.getElementById('openCartBtn').addEventListener('click', function() {
     renderCartModal();
+    refreshDestinationInfo();
+    showOrderFeedback('', false);
     document.getElementById('cartModal').classList.add('open');
   });
 
@@ -530,29 +626,64 @@ export function generateStandaloneCatalogHtml(catalog: SavedCatalog): string {
   });
 
   document.getElementById('sendWaBtn').addEventListener('click', function() {
-    var entries = Object.keys(cart).filter(function(id) { return cart[id] > 0; });
-    if (!entries.length) return;
-    var name = document.getElementById('buyerName').value.trim();
-    var addr = document.getElementById('buyerAddress').value.trim();
-    var notes = document.getElementById('buyerNotes').value.trim();
-    var total = 0;
-    var lines = ['Bonjour ' + DATA.storeName + ', je souhaite commander :'];
-    entries.forEach(function(id) {
-      var prod = DATA.products.find(function(x) { return x.id === id; });
-      if (!prod) return;
-      var q = cart[id];
-      var sub = prod.finalPrice * q;
-      total += sub;
-      lines.push('- ' + q + 'x ' + prod.name + ' (' + formatPrice(sub) + ')');
-    });
-    lines.push('Total estimé : ' + formatPrice(total));
-    if (name) lines.push('Client : ' + name);
-    if (addr) lines.push('Livraison : ' + addr);
-    if (notes) lines.push('Notes : ' + notes);
+    var rawText = buildOrderMessage();
+    if (!rawText) {
+      showOrderFeedback('Ajoutez au moins un article avant d’envoyer.', true);
+      return;
+    }
+    var msg = encodeURIComponent(rawText);
+    var waUrl = DATA.storePhone
+      ? 'https://api.whatsapp.com/send?phone=' + DATA.storePhone + '&text=' + msg
+      : 'https://api.whatsapp.com/send?text=' + msg;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawText).catch(function(){});
+      }
+    } catch(e) {}
+    openExternalLink(waUrl);
+    showOrderFeedback('Ouverture de WhatsApp avec votre commande (copie sauvegardée).', false);
+  });
 
-    var msg = encodeURIComponent(lines.join('\\n'));
-    var waUrl = DATA.storePhone ? 'https://wa.me/' + DATA.storePhone + '?text=' + msg : 'https://wa.me/?text=' + msg;
-    window.open(waUrl, '_blank');
+  document.getElementById('sendSmsBtn').addEventListener('click', function() {
+    var rawText = buildOrderMessage();
+    if (!rawText) {
+      showOrderFeedback('Ajoutez au moins un article avant d’envoyer par SMS.', true);
+      return;
+    }
+    var smsBody = encodeURIComponent(rawText);
+    var smsUrl = DATA.rawPhone ? 'sms:' + DATA.rawPhone + '?body=' + smsBody : 'sms:?body=' + smsBody;
+    window.location.href = smsUrl;
+    showOrderFeedback('Ouverture de votre application SMS (fonctionne sans Internet)...', false);
+  });
+
+  document.getElementById('callShopLink').addEventListener('click', function(e) {
+    if (!DATA.rawPhone) {
+      e.preventDefault();
+      showOrderFeedback('Numéro de téléphone de la boutique non renseigné.', true);
+    }
+  });
+
+  document.getElementById('copyOrderBtn').addEventListener('click', function() {
+    var rawText = buildOrderMessage();
+    if (!rawText) {
+      showOrderFeedback('Votre panier est vide.', true);
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(rawText).then(function() {
+        showOrderFeedback('Récapitulatif de la commande copié ✓', false);
+      }).catch(function() {
+        showOrderFeedback('Copie prête.', false);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = rawText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showOrderFeedback('Récapitulatif de la commande copié ✓', false);
+    }
   });
 
   renderProducts();

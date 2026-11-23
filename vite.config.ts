@@ -14,8 +14,8 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+        registerType: 'prompt',
+        includeAssets: ['icon.svg', 'apple-touch-icon.png'],
         manifest: {
           id: base,
           name: 'ZANDO Pro — Gestion Commerciale Offline-First',
@@ -50,15 +50,30 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest}'],
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+          ignoreURLParametersMatching: [/.*/],
+          runtimeCaching: [
+            {
+              urlPattern: ({sameOrigin, request}) => sameOrigin && request.mode !== 'navigate',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'zando-static-runtime',
+                expiration: {
+                  maxEntries: 120,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+              },
+            },
+          ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
       // Copies src/assets into dist/ so root-relative URLs like

@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {calculateFinanceSummary, ProfitPeriod} from '../services/financeEngine';
@@ -189,38 +190,41 @@ export const FinancesModule: React.FC = () => {
 
       {/* Category & Product Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <select
+        <ModernSelect
           value={categoryFilter}
-          onChange={(e) => {
-            setCategoryFilter(e.target.value);
+          onChange={(val) => {
+            setCategoryFilter(val);
             setProductFilter('ALL');
           }}
-          aria-label="Filtrer par catégorie"
-          className="min-h-[42px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs sm:text-sm"
-        >
-          <option value="ALL">Toutes les catégories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              Catégorie : {c}
-            </option>
-          ))}
-        </select>
+          searchable
+          searchPlaceholder="Rechercher une catégorie..."
+          ariaLabel="Filtrer par catégorie"
+          options={[
+            {value: 'ALL', label: 'Toutes les catégories'},
+            ...categories.map((c) => ({
+              value: c,
+              label: `Catégorie : ${c}`,
+            })),
+          ]}
+        />
 
-        <select
+        <ModernSelect
           value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
-          aria-label="Filtrer par produit"
-          className="min-h-[42px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs sm:text-sm"
-        >
-          <option value="ALL">Tous les produits</option>
-          {products
-            .filter((p) => categoryFilter === 'ALL' || p.category === categoryFilter)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                Produit : {p.name}
-              </option>
-            ))}
-        </select>
+          onChange={setProductFilter}
+          searchable
+          searchPlaceholder="Rechercher un produit..."
+          ariaLabel="Filtrer par produit"
+          options={[
+            {value: 'ALL', label: 'Tous les produits'},
+            ...products
+              .filter((p) => categoryFilter === 'ALL' || p.category === categoryFilter)
+              .map((p) => ({
+                value: p.id,
+                label: `Produit : ${p.name}`,
+                hint: p.category,
+              })),
+          ]}
+        />
       </div>
 
       {/* Main KPI Grid */}
@@ -600,17 +604,12 @@ export const FinancesModule: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Catégorie</label>
-              <select
+              <ModernSelect
                 value={expCategory}
-                onChange={(e) => setExpCategory(e.target.value as ExpenseCategory)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setExpCategory(val as ExpenseCategory)}
+                ariaLabel="Catégorie de dépense"
+                options={EXPENSE_CATEGORIES.map((c) => ({value: c, label: c}))}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">
@@ -640,16 +639,17 @@ export const FinancesModule: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Paiement</label>
-              <select
+              <ModernSelect
                 value={expMethod}
-                onChange={(e) => setExpMethod(e.target.value as PaymentMethod)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="Espèces">Espèces</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Virement">Virement</option>
-                <option value="Carte">Carte</option>
-              </select>
+                onChange={(val) => setExpMethod(val as PaymentMethod)}
+                ariaLabel="Mode de paiement"
+                options={[
+                  {value: 'Espèces', label: 'Espèces'},
+                  {value: 'Mobile Money', label: 'Mobile Money'},
+                  {value: 'Virement', label: 'Virement'},
+                  {value: 'Carte', label: 'Carte'},
+                ]}
+              />
             </div>
           </div>
 

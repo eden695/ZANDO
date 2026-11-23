@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   Upload,
 } from 'lucide-react';
+import {ModernSelect} from './ModernSelect';
 import {SheetModal} from './SheetModal';
 import {useStore} from '../context/StoreContext';
 import {downloadBlobSafely} from '../services/androidShareService';
@@ -231,20 +232,18 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({open, onClose
                       <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                         {meta.label} {meta.required ? '*' : ''}
                       </label>
-                      <select
+                      <ModernSelect
+                        compact
                         value={mapping[fieldKey]}
-                        onChange={(e) =>
-                          setMapping((prev) => ({...prev, [fieldKey]: e.target.value}))
+                        onChange={(val) =>
+                          setMapping((prev) => ({...prev, [fieldKey]: val}))
                         }
-                        className="w-full min-h-[40px] px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
-                      >
-                        <option value="">-- Non mappé --</option>
-                        {parsed.headers.map((h) => (
-                          <option key={h} value={h}>
-                            {h}
-                          </option>
-                        ))}
-                      </select>
+                        ariaLabel={`Colonne pour ${meta.label}`}
+                        options={[
+                          {value: '', label: '-- Non mappé --'},
+                          ...parsed.headers.map((h) => ({value: h, label: h})),
+                        ]}
+                      />
                     </div>
                   );
                 })}
@@ -255,27 +254,31 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({open, onClose
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
               <div>
                 <label className="block text-xs font-semibold mb-1">Détecter les doublons par</label>
-                <select
+                <ModernSelect
+                  compact
                   value={criterion}
-                  onChange={(e) => setCriterion(e.target.value as DuplicateCriterion)}
-                  className="w-full min-h-[40px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
-                >
-                  <option value="sku_or_name">Référence (SKU) ou Nom du produit</option>
-                  <option value="sku">Référence (SKU) uniquement</option>
-                  <option value="name">Nom du produit uniquement</option>
-                </select>
+                  onChange={(val) => setCriterion(val as DuplicateCriterion)}
+                  ariaLabel="Détecter les doublons par"
+                  options={[
+                    {value: 'sku_or_name', label: 'Référence (SKU) ou Nom du produit'},
+                    {value: 'sku', label: 'Référence (SKU) uniquement'},
+                    {value: 'name', label: 'Nom du produit uniquement'},
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1">En cas de doublon</label>
-                <select
+                <ModernSelect
+                  compact
                   value={policy}
-                  onChange={(e) => setPolicy(e.target.value as DuplicatePolicy)}
-                  className="w-full min-h-[40px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs"
-                >
-                  <option value="update">Mettre à jour le produit existant</option>
-                  <option value="skip">Ignorer le doublon</option>
-                  <option value="create">Importer comme nouveau produit</option>
-                </select>
+                  onChange={(val) => setPolicy(val as DuplicatePolicy)}
+                  ariaLabel="En cas de doublon"
+                  options={[
+                    {value: 'update', label: 'Mettre à jour le produit existant'},
+                    {value: 'skip', label: 'Ignorer le doublon'},
+                    {value: 'create', label: 'Importer comme nouveau produit'},
+                  ]}
+                />
               </div>
             </div>
 

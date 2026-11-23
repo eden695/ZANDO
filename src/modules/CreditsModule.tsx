@@ -6,6 +6,7 @@ import {
   Search,
   ShieldAlert,
 } from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {openWhatsAppChat} from '../services/androidShareService';
@@ -482,18 +483,21 @@ export const CreditsModule: React.FC = () => {
         <form onSubmit={handleSaveOperation} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold mb-1">Client *</label>
-            <select
+            <ModernSelect
               value={opCustomerId}
-              onChange={(e) => setOpCustomerId(e.target.value)}
-              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-            >
-              <option value="NEW">-- Nouveau client --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.phone ? `(${c.phone})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setOpCustomerId}
+              searchable
+              searchPlaceholder="Rechercher un client..."
+              ariaLabel="Client"
+              options={[
+                {value: 'NEW', label: '-- Nouveau client --'},
+                ...customers.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  hint: c.phone || c.channel,
+                })),
+              ]}
+            />
           </div>
 
           {opCustomerId === 'NEW' && (
@@ -512,8 +516,10 @@ export const CreditsModule: React.FC = () => {
                 <label className="block text-xs font-semibold mb-1">Téléphone WhatsApp</label>
                 <input
                   type="tel"
+                  inputMode="tel"
                   value={opNewPhone}
                   onChange={(e) => setOpNewPhone(e.target.value)}
+                  placeholder="+243..."
                   className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
                 />
               </div>
@@ -523,17 +529,18 @@ export const CreditsModule: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Type d’opération</label>
-              <select
+              <ModernSelect
                 value={opType}
-                onChange={(e) => handleOpTypeChange(e.target.value as CreditTransactionType)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="partial_payment">Paiement partiel reçu</option>
-                <option value="advance">Avance déposée par le client</option>
-                <option value="credit_sale">Nouvelle créance manuelle</option>
-                <option value="refund">Remboursement client</option>
-                <option value="correction">Correction traçable</option>
-              </select>
+                onChange={(val) => handleOpTypeChange(val as CreditTransactionType)}
+                ariaLabel="Type d’opération"
+                options={[
+                  {value: 'partial_payment', label: 'Paiement partiel reçu'},
+                  {value: 'advance', label: 'Avance déposée par le client'},
+                  {value: 'credit_sale', label: 'Nouvelle créance manuelle'},
+                  {value: 'refund', label: 'Remboursement client'},
+                  {value: 'correction', label: 'Correction traçable'},
+                ]}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">
@@ -554,34 +561,38 @@ export const CreditsModule: React.FC = () => {
           {opType === 'correction' && (
             <div>
               <label className="block text-xs font-semibold mb-1">Sens de la correction</label>
-              <select
+              <ModernSelect
                 value={opDirection}
-                onChange={(e) =>
-                  setOpDirection(e.target.value as 'debt_increase' | 'debt_decrease')
+                onChange={(val) =>
+                  setOpDirection(val as 'debt_increase' | 'debt_decrease')
                 }
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="debt_decrease">Réduire le solde dû (-)</option>
-                <option value="debt_increase">Augmenter le solde dû (+)</option>
-              </select>
+                ariaLabel="Sens de la correction"
+                options={[
+                  {value: 'debt_decrease', label: 'Réduire le solde dû (-)'},
+                  {value: 'debt_increase', label: 'Augmenter le solde dû (+)'},
+                ]}
+              />
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Vente associée (optionnel)</label>
-              <select
+              <ModernSelect
                 value={opSaleId}
-                onChange={(e) => setOpSaleId(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="">-- Aucune vente liée --</option>
-                {sales.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.receiptNumber} · {s.customerName} ({formatMoney(s.total, storeProfile.currency)})
-                  </option>
-                ))}
-              </select>
+                onChange={setOpSaleId}
+                searchable
+                searchPlaceholder="Rechercher un reçu..."
+                ariaLabel="Vente associée"
+                options={[
+                  {value: '', label: '-- Aucune vente liée --'},
+                  ...sales.map((s) => ({
+                    value: s.id,
+                    label: `${s.receiptNumber} · ${s.customerName}`,
+                    badge: formatMoney(s.total, storeProfile.currency),
+                  })),
+                ]}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Échéance (optionnel)</label>

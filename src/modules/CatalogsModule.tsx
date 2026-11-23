@@ -1,19 +1,28 @@
 import React, {useMemo, useState} from 'react';
 import {
   BookOpen,
+  Copy,
   Download,
+  ExternalLink,
   Eye,
   FileText,
+  Mail,
+  MessageCircle,
   Pencil,
+  Phone,
   Plus,
   Share2,
   Trash2,
 } from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
+import {useOnlineStatus} from '../hooks/useOnlineStatus';
 import {
+  copyTextSafely,
   downloadBlobSafely,
-  shareFileWithFallback,
+  openSocialAppIntent,
+  tryNativeFileShare,
 } from '../services/androidShareService';
 import {
   createIndependentCatalogSnapshot,
@@ -26,11 +35,28 @@ import {formatBytes, formatDateTime} from '../utils/format';
 export const CatalogsModule: React.FC = () => {
   const {catalogs, products, promotions, storeProfile, saveCatalog, removeCatalog, notify} =
     useStore();
+  const isOnline = useOnlineStatus();
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingCatalog, setEditingCatalog] = useState<SavedCatalog | null>(null);
   const [previewCatalog, setPreviewCatalog] = useState<SavedCatalog | null>(null);
   const [generating, setGenerating] = useState(false);
+
+  // PDF Confirmation Modal state
+  const [pdfConfirmState, setPdfConfirmState] = useState<{
+    catalog: SavedCatalog;
+    blob: Blob;
+    filename: string;
+  } | null>(null);
+
+  // Share Modal state (PDF or HTML across networks)
+  const [shareState, setShareState] = useState<{
+    catalog: SavedCatalog;
+    format: 'html' | 'pdf';
+    blob: Blob;
+    filename: string;
+    caption: string;
+  } | null>(null);
 
   // Builder state
   const [title, setTitle] = useState('');
@@ -122,31 +148,106 @@ export const CatalogsModule: React.FC = () => {
       .replace(/^-|-$/g, '') || 'catalogue';
 
   const handleDownloadHtml = async (cat: SavedCatalog) => {
-    const html = generateStandaloneCatalogHtml(cat);
-    const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
-    await downloadBlobSafely(blob, `${getSafeSlug(cat.title)}.html`);
-    notify('Fichier HTML autonome téléchargé.', 'success');
+    try {
+      const html = generateStandaloneCatalogHtml(cat);
+      const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+      await downloadBlobSafely(blob, `${getSafeSlug(cat.title)}.html`);
+      notify('Fichier HTML autonome téléchargé.', 'success');
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Erreur lors du téléchargement HTML.', 'error');
+    }
   };
 
-  const handleDownloadPdf = async (cat: SavedCatalog) => {
-    const blob = generateCatalogPdfBlob(cat);
-    await downloadBlobSafely(blob, `${getSafeSlug(cat.title)}.pdf`);
-    notify('Fichier PDF généré et téléchargé.', 'success');
+  const requestPdfConfirmation = (cat: SavedCatalog) => {
+    try {
+      const blob = generateCatalogPdfBlob(cat);
+      const filename = `${getSafeSlug(cat.title)}.pdf`;
+      setPdfConfirmState({catalog: cat, blob, filename});
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de générer le PDF.', 'error');
+    }
   };
 
-  const handleShareFile = async (cat: SavedCatalog, format: 'html' | 'pdf') => {
-    const blob =
-      format === 'html'
-        ? new Blob([generateStandaloneCatalogHtml(cat)], {type: 'text/html;charset=utf-8'})
-        : generateCatalogPdfBlob(cat);
-    const filename = `${getSafeSlug(cat.title)}.${format}`;
-    const res = await shareFileWithFallback(
-      blob,
-      filename,
-      cat.title,
-      `${cat.title} — ${cat.storeName} (${cat.products.length} produits).`,
+  const confirmAndDownloadPdf = async () => {
+    if (!pdfConfirmState) return;
+    try {
+      await downloadBlobSafely(pdfConfirmState.blob, pdfConfirmState.filename);
+      notify(
+        `Catalogue PDF téléchargé (${pdfConfirmState.filename} · ${formatBytes(pdfConfirmState.blob.size)}).`,
+        'success',
+      );
+      setPdfConfirmState(null);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Échec du téléchargement PDF.', 'error');
+    }
+  };
+
+  const openShareDialog = (cat: SavedCatalog, format: 'html' | 'pdf') => {
+    try {
+      const blob =
+        format === 'html'
+          ? new Blob([generateStandaloneCatalogHtml(cat)], {type: 'text/html;charset=utf-8'})
+          : generateCatalogPdfBlob(cat);
+      const filename = `${getSafeSlug(cat.title)}.${format}`;
+      const caption = [
+        `*${cat.title}* — ${cat.storeName}`,
+        cat.subtitle ? cat.subtitle : '',
+        `${cat.products.length} article(s) disponibles.`,
+        cat.storePhone ? `Commander sur WhatsApp / Tél : ${cat.storePhone}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      setShareState({
+        catalog: cat,
+        format,
+        blob,
+        filename,
+        caption,
+      });
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Impossible de préparer le partage.', 'error');
+    }
+  };
+
+  const handleNativeShareNow = async () => {
+    if (!shareState) return;
+    const res = await tryNativeFileShare(
+      shareState.blob,
+      shareState.filename,
+      shareState.catalog.title,
+      shareState.caption,
     );
-    notify(res.message, 'info');
+    if (res.shared) {
+      notify('Catalogue partagé via le menu natif.', 'success');
+      setShareState(null);
+      return;
+    }
+    if (res.cancelled) {
+      notify('Partage annulé.', 'info');
+      return;
+    }
+    await downloadBlobSafely(shareState.blob, shareState.filename);
+    await copyTextSafely(shareState.caption);
+    notify(
+      'Menu natif indisponible : fichier téléchargé et message copié. Choisissez un réseau ci-dessous.',
+      'info',
+    );
+  };
+
+  const handleNetworkShare = async (
+    platform: 'whatsapp' | 'facebook' | 'instagram' | 'tiktok' | 'email',
+  ) => {
+    if (!shareState) return;
+    // Prépare d'abord le fichier sur l'appareil afin que le commerçant puisse le joindre directement dans le réseau ouvert
+    await downloadBlobSafely(shareState.blob, shareState.filename);
+    const res = await openSocialAppIntent(platform, shareState.caption, shareState.catalog.title);
+    notify(
+      res.offline
+        ? `${shareState.filename} téléchargé localement. ${res.message}`
+        : `${shareState.filename} prêt à joindre dans ${platform.toUpperCase()} (texte copié).`,
+      res.offline ? 'error' : 'info',
+    );
   };
 
   const previewHtmlDoc = useMemo(() => {
@@ -158,7 +259,7 @@ export const CatalogsModule: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
-          Créez, modifiez et exportez vos catalogues hors ligne (HTML autonome avec images intégrées et panier WhatsApp, ou PDF professionnel).
+          Créez, modifiez et exportez vos catalogues hors ligne (HTML autonome avec commande WhatsApp, SMS & Appel direct, ou PDF professionnel).
         </p>
         <button
           type="button"
@@ -213,6 +314,14 @@ export const CatalogsModule: React.FC = () => {
                   <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-1">
                     {cat.storeName} · {cat.categories.join(', ')}
                   </p>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <Phone className="w-3 h-3 shrink-0" />
+                    <span>
+                      {cat.storePhone
+                        ? `Numéro commande : ${cat.storePhone}`
+                        : 'Aucun numéro WhatsApp/Tél enregistré'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
@@ -267,7 +376,7 @@ export const CatalogsModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDownloadPdf(cat)}
+                  onClick={() => requestPdfConfirmation(cat)}
                   className="inline-flex items-center gap-1.5 min-h-[42px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <FileText className="w-4 h-4 text-rose-600" />
@@ -275,7 +384,7 @@ export const CatalogsModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleShareFile(cat, 'html')}
+                  onClick={() => openShareDialog(cat, 'html')}
                   className="inline-flex items-center gap-1.5 min-h-[42px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
                 >
                   <Share2 className="w-4 h-4" />
@@ -283,7 +392,7 @@ export const CatalogsModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleShareFile(cat, 'pdf')}
+                  onClick={() => openShareDialog(cat, 'pdf')}
                   className="inline-flex items-center gap-1.5 min-h-[42px] px-3.5 rounded-xl border border-emerald-600/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
                 >
                   <Share2 className="w-4 h-4" />
@@ -319,17 +428,17 @@ export const CatalogsModule: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Compression des images</label>
-              <select
+              <ModernSelect
                 value={compressionPreset}
-                onChange={(e) =>
-                  setCompressionPreset(e.target.value as 'compact' | 'balanced' | 'high')
+                onChange={(val) =>
+                  setCompressionPreset(val as 'compact' | 'balanced' | 'high')
                 }
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="compact">Légère (480px · idéal WhatsApp)</option>
-                <option value="balanced">Équilibrée (640px · recommandée)</option>
-                <option value="high">Haute qualité (840px)</option>
-              </select>
+                options={[
+                  {value: 'compact', label: 'Légère (480px · idéal WhatsApp)'},
+                  {value: 'balanced', label: 'Équilibrée (640px · recommandée)'},
+                  {value: 'high', label: 'Haute qualité (840px)'},
+                ]}
+              />
             </div>
           </div>
 
@@ -459,33 +568,197 @@ export const CatalogsModule: React.FC = () => {
         </form>
       </SheetModal>
 
-      {/* Interactive HTML Preview Modal */}
+      {/* PDF Download Confirmation Modal (Real verified PDF generation + download) */}
+      <SheetModal
+        open={!!pdfConfirmState}
+        onClose={() => setPdfConfirmState(null)}
+        title="Confirmer le téléchargement PDF"
+        maxWidthClass="max-w-md"
+      >
+        {pdfConfirmState && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-4 space-y-1.5 text-xs sm:text-sm">
+              <div className="font-bold text-slate-900 dark:text-white">
+                {pdfConfirmState.catalog.title}
+              </div>
+              <div className="text-slate-600 dark:text-slate-400">
+                Fichier : <span className="font-mono font-semibold">{pdfConfirmState.filename}</span>
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 tabular-nums">
+                Contenu : {pdfConfirmState.catalog.products.length} produit(s) · Taille réelle :{' '}
+                <strong>{formatBytes(pdfConfirmState.blob.size)}</strong>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Voulez-vous télécharger ce catalogue professionnel au format PDF dans la mémoire de votre appareil ?
+            </p>
+
+            <div className="flex flex-wrap gap-2.5 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setPdfConfirmState(null)}
+                className="min-h-[44px] px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = pdfConfirmState.catalog;
+                  setPdfConfirmState(null);
+                  openShareDialog(target, 'pdf');
+                }}
+                className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl border border-emerald-600/40 text-emerald-700 dark:text-emerald-400 text-sm font-semibold cursor-pointer"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Partager PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={confirmAndDownloadPdf}
+                className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Confirmer et télécharger</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </SheetModal>
+
+      {/* Multi-Network Share Modal for PDF & HTML */}
+      <SheetModal
+        open={!!shareState}
+        onClose={() => setShareState(null)}
+        title={`Partager le catalogue (${shareState?.format.toUpperCase() ?? ''})`}
+        maxWidthClass="max-w-lg"
+      >
+        {shareState && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3.5 text-xs space-y-1">
+              <div className="font-bold text-slate-900 dark:text-white">
+                {shareState.filename} ({formatBytes(shareState.blob.size)})
+              </div>
+              <div className="text-slate-600 dark:text-slate-400">
+                Le fichier réel {shareState.format.toUpperCase()} sera envoyé via le partage système ou préparé pour le réseau choisi avec le message d’accroche copié.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleNativeShareNow}
+              className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold cursor-pointer"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Envoyer le fichier {shareState.format.toUpperCase()} (Partage Android / Système)</span>
+            </button>
+
+            {!isOnline && (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                Vous êtes hors ligne : le téléchargement du fichier et la copie fonctionnent sans Internet. L’ouverture des réseaux sociaux demande une connexion.
+              </div>
+            )}
+
+            <div>
+              <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
+                Ou partager vers un réseau associé :
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleNetworkShare('whatsapp')}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNetworkShare('facebook')}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4 text-sky-600" />
+                  <span>Facebook</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNetworkShare('instagram')}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4 text-pink-600" />
+                  <span>Instagram</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNetworkShare('tiktok')}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>TikTok</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNetworkShare('email')}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <Mail className="w-4 h-4 text-indigo-600" />
+                  <span>Email</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await copyTextSafely(shareState.caption);
+                    notify('Texte de partage copié.', 'success');
+                  }}
+                  className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <Copy className="w-4 h-4 text-slate-600" />
+                  <span>Copier texte</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </SheetModal>
+
+      {/* Full-Screen Interactive HTML Preview Modal */}
       <SheetModal
         open={!!previewCatalog}
         onClose={() => setPreviewCatalog(null)}
         title={`Aperçu autonome : ${previewCatalog?.title ?? ''}`}
-        maxWidthClass="max-w-4xl"
+        fullScreen
       >
         {previewCatalog && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <div className="flex flex-col h-full gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 shrink-0">
               <span>
-                Fichier autonome complet · Images encodées en local · Panier WhatsApp actif
+                Catalogue plein écran · Images encodées en local · Commande WhatsApp, SMS & Appel direct
               </span>
-              <button
-                type="button"
-                onClick={() => handleDownloadHtml(previewCatalog)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Télécharger HTML</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openShareDialog(previewCatalog, 'html')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold cursor-pointer"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Partager HTML</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadHtml(previewCatalog)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Télécharger HTML</span>
+                </button>
+              </div>
             </div>
             <iframe
               title="Aperçu du catalogue autonome"
               srcDoc={previewHtmlDoc}
-              sandbox="allow-scripts allow-popups"
-              className="w-full h-[65vh] rounded-xl border border-slate-200 dark:border-slate-800 bg-white"
+              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+              className="flex-1 w-full min-h-[calc(100dvh-135px)] rounded-xl border border-slate-200 dark:border-slate-800 bg-white"
             />
           </div>
         )}

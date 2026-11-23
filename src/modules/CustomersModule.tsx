@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {Edit3, MessageCircle, Plus, Search, Trash2} from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {openWhatsAppChat} from '../services/androidShareService';
@@ -226,6 +227,7 @@ export const CustomersModule: React.FC = () => {
               <label className="block text-xs font-semibold mb-1">Téléphone WhatsApp</label>
               <input
                 type="tel"
+                inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+243..."
@@ -234,17 +236,18 @@ export const CustomersModule: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Canal d’acquisition</label>
-              <select
+              <ModernSelect
                 value={channel}
-                onChange={(e) => setChannel(e.target.value as SalesChannel)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Facebook">Facebook</option>
-                <option value="Boutique">Boutique</option>
-                <option value="Autre">Autre</option>
-              </select>
+                onChange={(val) => setChannel(val as SalesChannel)}
+                ariaLabel="Canal d’acquisition"
+                options={[
+                  {value: 'WhatsApp', label: 'WhatsApp'},
+                  {value: 'Instagram', label: 'Instagram'},
+                  {value: 'Facebook', label: 'Facebook'},
+                  {value: 'Boutique', label: 'Boutique'},
+                  {value: 'Autre', label: 'Autre'},
+                ]}
+              />
             </div>
           </div>
           <div>

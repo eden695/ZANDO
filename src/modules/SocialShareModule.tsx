@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Copy, ExternalLink, Info, MessageCircle, Share2} from 'lucide-react';
 import {BlobImage} from '../components/BlobImage';
+import {ModernSelect} from '../components/ModernSelect';
 import {useStore} from '../context/StoreContext';
 import {getById, STORES} from '../db/indexedDb';
 import {useOnlineStatus} from '../hooks/useOnlineStatus';
@@ -102,17 +103,19 @@ export const SocialShareModule: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Produit à mettre en avant
               </label>
-              <select
+              <ModernSelect
                 value={selectedProduct?.id ?? ''}
-                onChange={(e) => setSelectedProductId(e.target.value)}
-                className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {formatMoney(p.price, storeProfile.currency)}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedProductId}
+                searchable
+                searchPlaceholder="Rechercher un produit..."
+                ariaLabel="Produit à mettre en avant"
+                options={products.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  hint: p.category,
+                  badge: formatMoney(p.price, storeProfile.currency),
+                }))}
+              />
             </div>
 
             {selectedProduct && (

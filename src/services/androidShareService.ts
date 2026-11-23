@@ -9,7 +9,7 @@ export interface ShareResult {
 export function detectAndroidWebView(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent.toLowerCase();
-  return /wv|website2apk|android.*version\/[\d.]+.*chrome/.test(ua);
+  return /wv|website2apk|android.*version\/[\d.]+/.test(ua);
 }
 
 export function canUseNativeFileShare(file: File): boolean {
@@ -24,9 +24,26 @@ export function canUseNativeFileShare(file: File): boolean {
 }
 
 export async function downloadBlobSafely(blob: Blob, filename: string): Promise<'anchor' | 'dataurl-fallback'> {
-  const isWebView = detectAndroidWebView();
-  let objectUrl: string | null = null;
+  if (!blob || blob.size === 0) {
+    throw new Error('Le fichier généré est vide.');
+  }
 
+  const isWebView = detectAndroidWebView();
+  if (isWebView && blob.size <= 12 * 1024 * 1024) {
+    // Android WebView / Website 2 APK DownloadListener rejette souvent blob: sans erreur JS -> data: URI fiable
+    const dataUrl = await blobToDataUrl(blob);
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    link.rel = 'noopener noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return 'dataurl-fallback';
+  }
+
+  let objectUrl: string | null = null;
   try {
     objectUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -38,15 +55,14 @@ export async function downloadBlobSafely(blob: Blob, filename: string): Promise<
     link.click();
     document.body.removeChild(link);
 
-    // Delay revocation so Android WebView download manager can read the stream
+    // Delay revocation so browser / Android download manager reads the full stream
     setTimeout(() => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-    }, 8000);
+    }, 15000);
 
     return 'anchor';
   } catch {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
-    // Fallback via Data URL for strict WebViews that reject blob: downloads
     const dataUrl = await blobToDataUrl(blob);
     const link = document.createElement('a');
     link.href = dataUrl;
@@ -54,19 +70,16 @@ export async function downloadBlobSafely(blob: Blob, filename: string): Promise<
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (isWebView) {
-      return 'dataurl-fallback';
-    }
     return 'dataurl-fallback';
   }
 }
 
-export async function shareFileWithFallback(
+export async function tryNativeFileShare(
   blob: Blob,
   filename: string,
   title: string,
   text: string,
-): Promise<ShareResult> {
+): Promise<{shared: boolean; cancelled?: boolean}> {
   try {
     const file = new File([blob], filename, {type: blob.type || 'application/octet-stream'});
     if (canUseNativeFileShare(file)) {
@@ -75,21 +88,36 @@ export async function shareFileWithFallback(
         text,
         files: [file],
       });
-      return {
-        method: 'web-share-file',
-        message: 'Fichier partagé via le menu natif de l’appareil.',
-      };
+      return {shared: true};
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      return {
-        method: 'web-share-file',
-        message: 'Partage annulé par l’utilisateur.',
-      };
+      return {shared: false, cancelled: true};
     }
   }
+  return {shared: false};
+}
 
-  // Fallback: trigger real download + copy text if possible
+export async function shareFileWithFallback(
+  blob: Blob,
+  filename: string,
+  title: string,
+  text: string,
+): Promise<ShareResult> {
+  const nativeRes = await tryNativeFileShare(blob, filename, title, text);
+  if (nativeRes.shared) {
+    return {
+      method: 'web-share-file',
+      message: 'Fichier partagé via le menu natif de l’appareil.',
+    };
+  }
+  if (nativeRes.cancelled) {
+    return {
+      method: 'web-share-file',
+      message: 'Partage annulé par l’utilisateur.',
+    };
+  }
+
   await downloadBlobSafely(blob, filename);
   await copyTextSafely(text);
 
@@ -101,7 +129,7 @@ export async function shareFileWithFallback(
         message: 'Fichier téléchargé et message prêt à partager.',
       };
     } catch {
-      // Ignore if cancelled or blocked in WebView
+      // Ignore if blocked in WebView
     }
   }
 
@@ -159,7 +187,9 @@ export async function openWhatsAppChat(
 
   const clean = sanitizePhoneForWhatsApp(phone);
   const encoded = encodeURIComponent(message);
-  const url = clean ? `https://wa.me/${clean}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+  const url = clean
+    ? `https://api.whatsapp.com/send?phone=${clean}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
   launchExternalUri(url);
   return {
     launched: true,
@@ -169,8 +199,9 @@ export async function openWhatsAppChat(
 }
 
 export async function openSocialAppIntent(
-  platform: 'whatsapp' | 'facebook' | 'instagram' | 'tiktok',
+  platform: 'whatsapp' | 'facebook' | 'instagram' | 'tiktok' | 'email',
   textToCopy?: string,
+  subject?: string,
 ): Promise<ExternalLaunchResult> {
   if (textToCopy) {
     await copyTextSafely(textToCopy);
@@ -181,6 +212,7 @@ export async function openSocialAppIntent(
     facebook: 'Facebook',
     instagram: 'Instagram',
     tiktok: 'TikTok',
+    email: 'Email',
   };
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -194,16 +226,19 @@ export async function openSocialAppIntent(
   }
 
   const urls: Record<typeof platform, string> = {
-    whatsapp: textToCopy ? `https://wa.me/?text=${encodeURIComponent(textToCopy)}` : 'https://wa.me/',
+    whatsapp: textToCopy
+      ? `https://api.whatsapp.com/send?text=${encodeURIComponent(textToCopy)}`
+      : 'https://api.whatsapp.com/',
     facebook: 'https://www.facebook.com/',
     instagram: 'https://www.instagram.com/',
     tiktok: 'https://www.tiktok.com/',
+    email: `mailto:?subject=${encodeURIComponent(subject || 'Catalogue boutique')}&body=${encodeURIComponent(textToCopy || '')}`,
   };
   launchExternalUri(urls[platform]);
   return {
     launched: true,
     offline: false,
-    message: `Ouverture de ${labels[platform]} pour validation manuelle.`,
+    message: `Ouverture de ${labels[platform]} pour partager.`,
   };
 }
 

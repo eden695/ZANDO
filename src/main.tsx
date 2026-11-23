@@ -11,12 +11,22 @@ if (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1')
 ) {
-  registerSW({
-    immediate: true,
-    onOfflineReady() {
-      // Cache hors ligne prêt
-    },
-  });
+  try {
+    registerSW({
+      immediate: true,
+      onNeedRefresh() {
+        // Ne jamais forcer un rechargement hors ligne qui pourrait afficher une erreur réseau
+      },
+      onOfflineReady() {
+        // Cache hors ligne prêt
+      },
+      onRegisterError() {
+        // Ignoré proprement si le WebView Android gère son propre cache local
+      },
+    });
+  } catch {
+    // WebView restrictif : l'app continue de fonctionner localement via IndexedDB
+  }
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

@@ -43,8 +43,50 @@ export function formatBytes(bytes: number): string {
   return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
 }
 
+export function normalizePhoneDigits(phone: string): string {
+  const ascii = (phone || '')
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10));
+  return ascii.replace(/[^\d]/g, '');
+}
+
 export function sanitizePhoneForWhatsApp(phone: string): string {
-  return phone.replace(/[^\d]/g, '');
+  let digits = normalizePhoneDigits(phone);
+  // Convertit uniquement l'indicatif de sortie international "00" (ex: 00243...) sans jamais supprimer un chiffre d'un numéro local
+  if (digits.startsWith('00') && digits.length > 10) {
+    digits = digits.slice(2);
+  }
+  return digits;
+}
+
+export function formatPhoneForTelUri(phone: string): string {
+  const trimmed = (phone || '').trim();
+  const digits = sanitizePhoneForWhatsApp(trimmed);
+  if (!digits) return '';
+  return trimmed.startsWith('+') || (trimmed.startsWith('00') && digits.length > 9)
+    ? `+${digits}`
+    : digits;
+}
+
+export function analyzeWhatsAppPhone(phone: string): {
+  waDigits: string;
+  telUriPhone: string;
+  hasCountryCodeHint: boolean;
+  isShort: boolean;
+} {
+  const trimmed = (phone || '').trim();
+  const waDigits = sanitizePhoneForWhatsApp(trimmed);
+  const telUriPhone = formatPhoneForTelUri(trimmed);
+  const hasPlusOr00 = trimmed.startsWith('+') || trimmed.startsWith('00');
+  const hasCountryCodeHint =
+    waDigits.length >= 8 && (hasPlusOr00 || (!waDigits.startsWith('0') && waDigits.length >= 10));
+  return {
+    waDigits,
+    telUriPhone,
+    hasCountryCodeHint,
+    isShort: waDigits.length > 0 && waDigits.length < 8,
+  };
 }
 
 export function getContrastTextColor(hexColor: string): '#FFFFFF' | '#0F172A' {

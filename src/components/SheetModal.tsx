@@ -8,6 +8,7 @@ interface SheetModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidthClass?: string;
+  fullScreen?: boolean;
 }
 
 export const SheetModal: React.FC<SheetModalProps> = ({
@@ -17,6 +18,7 @@ export const SheetModal: React.FC<SheetModalProps> = ({
   children,
   footer,
   maxWidthClass = 'max-w-lg',
+  fullScreen = false,
 }) => {
   const [minimized, setMinimized] = useState(false);
   const [offset, setOffset] = useState({x: 0, y: 0});
@@ -48,6 +50,7 @@ export const SheetModal: React.FC<SheetModalProps> = ({
   }, [open, onClose]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (fullScreen) return;
     // Ignore drag start when tapping header buttons
     const target = e.target as HTMLElement;
     if (target.closest('button')) return;
@@ -63,7 +66,7 @@ export const SheetModal: React.FC<SheetModalProps> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging || !dragStartRef.current) return;
+    if (fullScreen || !dragging || !dragStartRef.current) return;
     const dx = e.clientX - dragStartRef.current.pointerX;
     const dy = e.clientY - dragStartRef.current.pointerY;
 
@@ -91,6 +94,38 @@ export const SheetModal: React.FC<SheetModalProps> = ({
   };
 
   if (!open) return null;
+
+  if (fullScreen) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-white dark:bg-slate-950 flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="h-14 px-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex items-center justify-between gap-3 shrink-0">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+            aria-label="Fermer"
+          >
+            <X className="w-4 h-4" />
+            <span>Fermer</span>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">{children}</div>
+        {footer && (
+          <div className="px-4 sm:px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0 pb-safe">
+            {footer}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

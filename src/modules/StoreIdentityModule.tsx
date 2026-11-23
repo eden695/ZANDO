@@ -1,20 +1,31 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {ImagePlus, Moon, Pipette, Sun, Trash2} from 'lucide-react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {
+  CheckCircle2,
+  ExternalLink,
+  ImagePlus,
+  Layers,
+  Moon,
+  Pipette,
+  Sun,
+  Trash2,
+} from 'lucide-react';
 import {BlobImage} from '../components/BlobImage';
+import {ModernSelect} from '../components/ModernSelect';
 import {PageColorPipette} from '../components/PageColorPipette';
 import {useStore} from '../context/StoreContext';
-import {copyTextSafely} from '../services/androidShareService';
+import {copyTextSafely, openWhatsAppChat} from '../services/androidShareService';
 import {deleteMediaBlob, saveCompressedImageBlob} from '../services/mediaService';
 import {ProductLayoutMode, StoreProfile, ThemeMode} from '../types/commerce';
-import {getContrastTextColor} from '../utils/format';
+import {analyzeWhatsAppPhone, getContrastTextColor} from '../utils/format';
 
 const CURRENCIES = ['FCFA', 'XOF', 'XAF', 'CDF', 'GNF', 'MAD', 'EUR (€)', 'USD ($)'];
 
 export const StoreIdentityModule: React.FC = () => {
-  const {storeProfile, saveStoreProfile, notify} = useStore();
+  const {storeProfile, products, saveStoreProfile, notify} = useStore();
   const [form, setForm] = useState<StoreProfile>(storeProfile);
   const [saving, setSaving] = useState(false);
   const [pipetteTarget, setPipetteTarget] = useState<'primaryColor' | 'accentColor' | null>(null);
+  const [selectedCategoryPreview, setSelectedCategoryPreview] = useState<string>('ALL');
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +36,18 @@ export const StoreIdentityModule: React.FC = () => {
 
   const primaryFg = getContrastTextColor(form.primaryColor);
   const accentFg = getContrastTextColor(form.accentColor);
+  const phoneCheck = useMemo(() => analyzeWhatsAppPhone(form.phone), [form.phone]);
+
+  const categoryStats = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) {
+      const cat = p.category.trim() || 'Général';
+      map.set(cat, (map.get(cat) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({name, count}))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }, [products]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -215,17 +238,12 @@ export const StoreIdentityModule: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold mb-1">Devise principale</label>
-              <select
+              <ModernSelect
                 value={form.currency}
-                onChange={(e) => setForm({...form, currency: e.target.value})}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setForm({...form, currency: val})}
+                options={CURRENCIES.map((c) => ({value: c, label: c}))}
+                ariaLabel="Devise principale"
+              />
             </div>
 
             <div>
@@ -234,11 +252,47 @@ export const StoreIdentityModule: React.FC = () => {
               </label>
               <input
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={form.phone}
                 onChange={(e) => setForm({...form, phone: e.target.value})}
                 placeholder="+243 810 000 000"
-                className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
+                className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm tabular-nums"
               />
+              {form.phone.trim() && (
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span
+                    className={`inline-flex items-center gap-1 font-medium ${
+                      phoneCheck.isShort || !phoneCheck.hasCountryCodeHint
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    {phoneCheck.isShort
+                      ? `Numéro incomplet (${phoneCheck.waDigits.length} chiffres)`
+                      : !phoneCheck.hasCountryCodeHint
+                        ? `Ajoutez l’indicatif pays (ex. +243, +225) · détecté : ${phoneCheck.waDigits}`
+                        : `WhatsApp prêt : +${phoneCheck.waDigits} (${phoneCheck.waDigits.length} chiffres)`}
+                  </span>
+                  {phoneCheck.waDigits.length >= 8 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await openWhatsAppChat(
+                          form.phone,
+                          `Test WhatsApp boutique ${form.name}`,
+                        );
+                        notify(res.message, res.offline ? 'error' : 'info');
+                      }}
+                      className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                    >
+                      <span>Tester</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -263,12 +317,18 @@ export const StoreIdentityModule: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold mb-1">Description de la boutique</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold">Description de la boutique</label>
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {form.description.length} caractères
+              </span>
+            </div>
             <textarea
-              rows={2}
+              rows={5}
               value={form.description}
               onChange={(e) => setForm({...form, description: e.target.value})}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
+              placeholder="Décrivez votre boutique, vos spécialités, horaires, zones de livraison et conditions..."
+              className="w-full min-h-[135px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm leading-relaxed resize-y"
             />
           </div>
 
@@ -400,14 +460,15 @@ export const StoreIdentityModule: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold mb-1">Présentation produits</label>
-              <select
+              <ModernSelect
                 value={form.layoutMode}
-                onChange={(e) => setForm({...form, layoutMode: e.target.value as ProductLayoutMode})}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="grid">Grille visuelle</option>
-                <option value="list">Liste compacte</option>
-              </select>
+                onChange={(val) => setForm({...form, layoutMode: val as ProductLayoutMode})}
+                options={[
+                  {value: 'grid', label: 'Grille visuelle'},
+                  {value: 'list', label: 'Liste compacte'},
+                ]}
+                ariaLabel="Présentation produits"
+              />
             </div>
           </div>
 
@@ -440,6 +501,68 @@ export const StoreIdentityModule: React.FC = () => {
               </button>
             </div>
           </div>
+        </section>
+
+        {/* Store Categories Overview with Modern Dropdown */}
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-600" />
+                <span>Toutes les catégories de la boutique</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Consultez l’ensemble des catégories actives dans votre inventaire et vos catalogues.
+              </p>
+            </div>
+            <div className="w-full sm:w-72">
+              <ModernSelect
+                value={selectedCategoryPreview}
+                onChange={setSelectedCategoryPreview}
+                searchable
+                searchPlaceholder="Chercher une catégorie..."
+                ariaLabel="Toutes les catégories de la boutique"
+                options={[
+                  {
+                    value: 'ALL',
+                    label: 'Toutes les catégories',
+                    badge: `${products.length} art.`,
+                  },
+                  ...categoryStats.map((cat) => ({
+                    value: cat.name,
+                    label: cat.name,
+                    badge: `${cat.count} art.`,
+                  })),
+                ]}
+              />
+            </div>
+          </div>
+
+          {categoryStats.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Aucune catégorie enregistrée pour le moment. Les catégories sont créées automatiquement lorsque vous ajoutez ou importez des produits.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+              {categoryStats
+                .filter(
+                  (c) => selectedCategoryPreview === 'ALL' || c.name === selectedCategoryPreview,
+                )
+                .map((c) => (
+                  <div
+                    key={c.name}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 flex items-center justify-between gap-2"
+                  >
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      {c.name}
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 tabular-nums shrink-0">
+                      {c.count}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
         </section>
 
         <div className="flex justify-end">

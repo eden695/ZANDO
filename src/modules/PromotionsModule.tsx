@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {Edit3, Percent, Plus, Trash2} from 'lucide-react';
+import {ModernSelect} from '../components/ModernSelect';
 import {SheetModal} from '../components/SheetModal';
 import {useStore} from '../context/StoreContext';
 import {DiscountType, Promotion, PromotionScope} from '../types/commerce';
@@ -240,14 +241,15 @@ export const PromotionsModule: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Type de remise</label>
-              <select
+              <ModernSelect
                 value={discountType}
-                onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                <option value="percent">Pourcentage (%)</option>
-                <option value="fixed">Montant fixe ({storeProfile.currency})</option>
-              </select>
+                onChange={(val) => setDiscountType(val as DiscountType)}
+                ariaLabel="Type de remise"
+                options={[
+                  {value: 'percent', label: 'Pourcentage (%)'},
+                  {value: 'fixed', label: `Montant fixe (${storeProfile.currency})`},
+                ]}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1">Valeur *</label>
@@ -264,31 +266,33 @@ export const PromotionsModule: React.FC = () => {
 
           <div>
             <label className="block text-xs font-semibold mb-1">Application</label>
-            <select
+            <ModernSelect
               value={scope}
-              onChange={(e) => setScope(e.target.value as PromotionScope)}
-              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-            >
-              <option value="all">Tous les produits</option>
-              <option value="category">Une catégorie spécifique</option>
-              <option value="products">Produits sélectionnés</option>
-            </select>
+              onChange={(val) => setScope(val as PromotionScope)}
+              ariaLabel="Application de la promotion"
+              options={[
+                {value: 'all', label: 'Tous les produits'},
+                {value: 'category', label: 'Une catégorie spécifique'},
+                {value: 'products', label: 'Produits sélectionnés'},
+              ]}
+            />
           </div>
 
           {scope === 'category' && (
             <div>
               <label className="block text-xs font-semibold mb-1">Catégorie ciblée</label>
-              <select
+              <ModernSelect
                 value={targetCategory}
-                onChange={(e) => setTargetCategory(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm"
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setTargetCategory}
+                searchable
+                searchPlaceholder="Rechercher une catégorie..."
+                placeholder="Choisir une catégorie..."
+                ariaLabel="Catégorie ciblée"
+                options={categories.map((c) => ({
+                  value: c,
+                  label: c,
+                }))}
+              />
             </div>
           )}
 
